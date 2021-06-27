@@ -1,6 +1,4 @@
 #include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include "json.h"
 
 static int main_ret = 0;
@@ -120,6 +118,7 @@ static void test_parse() {
     test_parse_true();
     test_parse_false();
     test_parse_number();
+    test_parse_number_too_big();
 }
 
 int main() {

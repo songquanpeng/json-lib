@@ -1,6 +1,8 @@
 #include "json.h"
 #include <assert.h>
 #include <stdlib.h>
+#include <errno.h>
+#include <math.h>
 
 #define EXPECT(c, ch)       do { assert(*(c)->json == (ch)); (c)->json++; } while(0)
 #define ISDIGIT(ch)         ((ch) >= '0' && (ch) <= '9')
@@ -34,20 +36,42 @@ static int json_parse_literal(json_context *c, json_value *v, const char *litera
     return JSON_PARSE_OK;
 }
 
+/*
+ * number = [ "-" ] int [ frac ] [ exp ]
+ * int = "0" / digit1-9 *digit
+ * frac = "." 1*digit
+ * exp = ("e" / "E") ["-" / "+"] 1*digit
+ */
 static int json_parse_number(json_context *c, json_value *v) {
-    char *end;
-    if (*c->json != '-' && !ISDIGIT(*c->json)) {
-        return JSON_PARSE_INVALID_VALUE;
+    const char *p = c->json;
+    if (*p == '-') {
+        p++;
     }
-    v->num = strtod(c->json, &end);
-    if (c->json == end) {
-        return JSON_PARSE_INVALID_VALUE;
+    if (*p == '0') {
+        p++;
+    } else {
+        if (!ISDIGIT1TO9(*p)) return JSON_PARSE_INVALID_VALUE;
+        for (p++;ISDIGIT(*p);p++);
     }
-    if (*(end - 1) == '.') {
-        return JSON_PARSE_INVALID_VALUE;
+    if (*p == '.') {
+        p++;
+        if (!ISDIGIT(*p)) return JSON_PARSE_INVALID_VALUE;
+        for (p++;ISDIGIT(*p);p++);
     }
-    c->json = end;
+    if (*p == 'e' || *p == 'E') {
+        p++;
+        if (*p == '-' || *p == '+') {
+            p++;
+        }
+        if (!ISDIGIT(*p)) return JSON_PARSE_INVALID_VALUE;
+        for (p++;ISDIGIT(*p);p++);
+    }
 
+    errno = 0;
+    v->num = strtod(c->json, NULL);
+    if (errno == ERANGE && (v->num == HUGE_VAL || v->num == -HUGE_VAL)) return JSON_PARSE_NUMBER_TOO_BIG;
+
+    c->json = p;
     v->type = JSON_NUMBER;
     return JSON_PARSE_OK;
 }
